@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"math/rand"
+	"sort"
 	"testing"
 )
 
@@ -22,6 +23,45 @@ func TestEncodeDecode(t *testing.T) {
 		if i != uint32(j) {
 			t.Errorf("Basic encode/decode failed. Got %d, wanted %d", j, i)
 		}
+	}
+}
+
+func TestCantDeserializeBrokenDigest(t *testing.T) {
+	digest := uncheckedNew()
+
+	for i := 0; i < 1000; i++ {
+		_ = digest.Add(rand.Float64())
+	}
+
+	// Scramble the summary. Whislt it won't cause crash,
+	// nothing from `digest` can be trusted anymore as
+	// we expect the summary means to be sorted.
+	rand.Shuffle(digest.summary.Len(), func(i, j int) {
+		digest.summary.Swap(i, j)
+	})
+
+	if sort.IsSorted(digest.summary) {
+		t.Errorf("Unlucky seed? Shuffling the summary shouldn't have left it sorted")
+	}
+
+	brokenPayload, err := digest.AsBytes()
+
+	if err != nil {
+		t.Error(err)
+	}
+
+	invalidDigest, err := FromBytes(bytes.NewReader(brokenPayload))
+
+	if invalidDigest != nil || err == nil {
+		t.Errorf("Expected an error after tdigest.FromBytes()")
+	}
+
+	// Same should happen when using the instance's FromBytes()
+	emptyDigest := uncheckedNew()
+	err = emptyDigest.FromBytes(brokenPayload)
+
+	if err == nil {
+		t.Errorf("Expected an error after emptyDigest.FromBytes()")
 	}
 }
 

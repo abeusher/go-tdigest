@@ -110,7 +110,13 @@ func FromBytes(buf *bytes.Reader, options ...tdigestOption) (*TDigest, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		x += float64(delta)
+
+		if i > 0 && t.summary.means[i-1] > x {
+			return nil, errors.New("expected means to be sorted")
+		}
+
 		t.summary.means[i] = x
 	}
 
@@ -168,6 +174,11 @@ func (t *TDigest) FromBytes(buf []byte) error {
 		delta := math.Float32frombits(endianess.Uint32(buf[idx:]))
 		idx += 4
 		x += float64(delta)
+
+		if i > 0 && t.summary.means[i-1] > x {
+			return errors.New("expected means to be sorted")
+		}
+
 		t.summary.means[i] = x
 	}
 
